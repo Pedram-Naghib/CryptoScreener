@@ -49,3 +49,38 @@ class Strategy(ABC):
         scoring engine sums these directly, it does not scale them.
         """
         raise NotImplementedError
+
+    def merge_matches(self, matches: list) -> DirectionResult:
+        """
+        Call this instead of building DirectionResult by hand whenever a
+        strategy can match on more than one timeframe. Caps the score at
+        self.weight (never adds it per-timeframe) while preserving full
+        visibility into WHICH timeframes agreed -- e.g. the alert shows
+        "EMA Confluence [4H, 1D]" instead of losing everything but the last
+        match. This is why every strategy should route through here rather
+        than overwriting a DirectionResult in a loop.
+
+        matches: list of (timeframe: str, extra_details: dict) tuples,
+                 one entry per timeframe that independently triggered.
+        Returns a DirectionResult with score=0 if matches is empty.
+        """
+        if not matches:
+            return DirectionResult()
+
+        timeframes = [tf for tf, _ in matches]
+        merged: Dict = {"tf": timeframes}
+
+        extra_keys = set()
+        for _, extra in matches:
+            extra_keys.update(extra.keys())
+
+        for key in extra_keys:
+            values = [extra.get(key) for _, extra in matches]
+            # if every timeframe agrees on this value, show it once; otherwise
+            # show the per-timeframe list so nothing gets silently dropped
+            if len(set(map(str, values))) == 1:
+                merged[key] = values[0]
+            else:
+                merged[key] = values
+
+        return DirectionResult(score=self.weight, details=merged)

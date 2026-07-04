@@ -83,8 +83,8 @@ FVG_VWAP_TOLERANCE_PCT = 0.005 # "aligning with VWAP" = within 0.5% of the VWAP 
 # Module 2: HTF RSI divergence (+ double bottom/top confluence)
 # ---------------------------------------------------------------------------
 DIVERGENCE_LOOKBACK_BARS = 20   # max bars between the two pivots being compared
-PIVOT_LEFT = 3
-PIVOT_RIGHT = 3
+LTF_PIVOT_WINDOW = 3   # pivot left/right window for 1H/4H (fast market, more noise -- tune independently)
+HTF_PIVOT_WINDOW = 3   # pivot left/right window for 1D/1W (slower structure -- tune independently)
 RSI_SMA_TOUCH_TOLERANCE = 1.0   # RSI within this many points of its SMA counts as "touching"
 
 DOUBLE_PATTERN_TOLERANCE_PCT = 0.008  # the two lows/highs must be within 0.8% of each other

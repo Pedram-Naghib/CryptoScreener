@@ -69,8 +69,8 @@ def suggest_tp_for_direction(data: Dict[str, pd.DataFrame], direction: str) -> d
         if df is None:
             continue
         df = detect_fvgs(df.copy())
-        df["swing_high"] = find_swing_highs(df, config.PIVOT_LEFT, config.PIVOT_RIGHT)
-        df["swing_low"] = find_swing_lows(df, config.PIVOT_LEFT, config.PIVOT_RIGHT)
+        df["swing_high"] = find_swing_highs(df, config.LTF_PIVOT_WINDOW, config.LTF_PIVOT_WINDOW)
+        df["swing_low"] = find_swing_lows(df, config.LTF_PIVOT_WINDOW, config.LTF_PIVOT_WINDOW)
         tp = tp_logic.suggest_tp(df, direction)
         if tp.get("target_price"):
             return tp

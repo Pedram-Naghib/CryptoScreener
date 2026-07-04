@@ -59,7 +59,8 @@ class HTFRSIDivergence(Strategy):
     required_timeframes = [config.TF_1D, config.TF_1W]
 
     def evaluate(self, data):
-        result = StrategyResult()
+        long_matches = []
+        short_matches = []
         rsi_col = f"rsi{config.RSI_PERIOD}"
 
         for tf, df in data.items():
@@ -69,7 +70,7 @@ class HTFRSIDivergence(Strategy):
             low = df["low"].values
             high = df["high"].values
             rsi = df[rsi_col].values
-            order = config.PIVOT_LEFT
+            order = config.HTF_PIVOT_WINDOW
 
             low_pivots = _pivot_indices(low, order, "min")
             high_pivots = _pivot_indices(high, order, "max")
@@ -99,8 +100,11 @@ class HTFRSIDivergence(Strategy):
             # only score if the confirming pivot is still "current" -- otherwise
             # we'd be alerting on stale structure from way earlier in the window
             if bullish_tag and len(low_pivots) and (len(df) - 1 - low_pivots[-1]) <= config.DIVERGENCE_LOOKBACK_BARS:
-                result.long = DirectionResult(score=self.weight, details={"tf": tf, "type": bullish_tag})
+                long_matches.append((tf, {"type": bullish_tag}))
             if bearish_tag and len(high_pivots) and (len(df) - 1 - high_pivots[-1]) <= config.DIVERGENCE_LOOKBACK_BARS:
-                result.short = DirectionResult(score=self.weight, details={"tf": tf, "type": bearish_tag})
+                short_matches.append((tf, {"type": bearish_tag}))
 
-        return result
+        return StrategyResult(
+            long=self.merge_matches(long_matches),
+            short=self.merge_matches(short_matches),
+        )

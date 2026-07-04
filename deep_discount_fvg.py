@@ -25,8 +25,8 @@ from strategies.base import Strategy, StrategyResult, DirectionResult
 def _get_last_valid_leg(df: pd.DataFrame):
     """Most recent swing leg, filtered to require leg size >= MIN_LEG_ATR_MULT * ATR."""
     recent = df.iloc[-config.FIB_SWING_LOOKBACK_BARS:]
-    ph = find_swing_highs(recent, config.PIVOT_LEFT, config.PIVOT_RIGHT)
-    pl = find_swing_lows(recent, config.PIVOT_LEFT, config.PIVOT_RIGHT)
+    ph = find_swing_highs(recent, config.LTF_PIVOT_WINDOW, config.LTF_PIVOT_WINDOW)
+    pl = find_swing_lows(recent, config.LTF_PIVOT_WINDOW, config.LTF_PIVOT_WINDOW)
 
     high_idx_list = recent.index[ph]
     low_idx_list = recent.index[pl]
@@ -65,7 +65,8 @@ class DeepDiscountFVG(Strategy):
     required_timeframes = [config.TF_1H, config.TF_4H]
 
     def evaluate(self, data):
-        result = StrategyResult()
+        long_matches = []
+        short_matches = []
 
         for tf, df in data.items():
             if len(df) < config.FIB_SWING_LOOKBACK_BARS:
@@ -90,14 +91,16 @@ class DeepDiscountFVG(Strategy):
             if matches.empty:
                 continue
 
-            details = {
-                "tf": tf,
+            extra = {
                 "ote_zone": f"{zone_bottom:.6f}-{zone_top:.6f}",
                 "fvg_count": int(len(matches)),
             }
             if direction == "uptrend":
-                result.long = DirectionResult(score=self.weight, details=details)
+                long_matches.append((tf, extra))
             else:
-                result.short = DirectionResult(score=self.weight, details=details)
+                short_matches.append((tf, extra))
 
-        return result
+        return StrategyResult(
+            long=self.merge_matches(long_matches),
+            short=self.merge_matches(short_matches),
+        )

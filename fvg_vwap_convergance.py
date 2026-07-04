@@ -26,7 +26,8 @@ class FVGVWAPConvergence(Strategy):
     required_timeframes = [config.TF_1H, config.TF_4H]
 
     def evaluate(self, data):
-        result = StrategyResult()
+        long_matches = []
+        short_matches = []
 
         for tf, df in data.items():
             vwap_col = _VWAP_COL_BY_TF.get(tf)
@@ -49,6 +50,8 @@ class FVGVWAPConvergence(Strategy):
             if not near_vwap:
                 continue
 
+            tf_long_hit = False
+            tf_short_hit = False
             for _, gap in active.iterrows():
                 top, bottom = gap["fvg_top"], gap["fvg_bottom"]
                 gap_size = top - bottom
@@ -59,12 +62,20 @@ class FVGVWAPConvergence(Strategy):
                     proximity_hit = abs(current_price - bottom) / bottom <= config.FVG_PROXIMITY_PCT
                     wick_hit = current_low <= bottom + gap_size * config.FVG_WICK_ENTRY_PCT
                     if proximity_hit or wick_hit:
-                        result.long = DirectionResult(score=self.weight, details={"tf": tf})
+                        tf_long_hit = True
 
                 elif gap["bearish_fvg"]:
                     proximity_hit = abs(current_price - top) / top <= config.FVG_PROXIMITY_PCT
                     wick_hit = current_high >= top - gap_size * config.FVG_WICK_ENTRY_PCT
                     if proximity_hit or wick_hit:
-                        result.short = DirectionResult(score=self.weight, details={"tf": tf})
+                        tf_short_hit = True
 
-        return result
+            if tf_long_hit:
+                long_matches.append((tf, {}))
+            if tf_short_hit:
+                short_matches.append((tf, {}))
+
+        return StrategyResult(
+            long=self.merge_matches(long_matches),
+            short=self.merge_matches(short_matches),
+        )

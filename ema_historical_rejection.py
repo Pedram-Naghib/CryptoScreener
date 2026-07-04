@@ -21,7 +21,8 @@ class EMAHistoricalRejection(Strategy):
     required_timeframes = [config.TF_1H, config.TF_4H, config.TF_1D]
 
     def evaluate(self, data):
-        result = StrategyResult()
+        long_matches = []
+        short_matches = []
 
         for tf, df in data.items():
             if len(df) < config.EMA_REJECTION_LOOKBACK_BARS:
@@ -30,14 +31,14 @@ class EMAHistoricalRejection(Strategy):
             if not reaction.get("active"):
                 continue
 
-            details = {
-                "tf": tf,
-                "ema": reaction["ema"],
-                "prior_rejections": reaction["prior_rejections"],
-            }
+            label = f"{tf}:{reaction['ema']}"
+            extra = {"prior_rejections": reaction["prior_rejections"]}
             if reaction["direction"] == "bullish_rejection":
-                result.long = DirectionResult(score=self.weight, details=details)
+                long_matches.append((label, extra))
             else:
-                result.short = DirectionResult(score=self.weight, details=details)
+                short_matches.append((label, extra))
 
-        return result
+        return StrategyResult(
+            long=self.merge_matches(long_matches),
+            short=self.merge_matches(short_matches),
+        )

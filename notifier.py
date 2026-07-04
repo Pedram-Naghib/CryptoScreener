@@ -16,6 +16,19 @@ logger = logging.getLogger("notifier")
 _bot = Bot(token=config.TELEGRAM_BOT_TOKEN) if config.TELEGRAM_BOT_TOKEN else None
 
 
+def _format_detail_value(v) -> str:
+    def _fmt_one(x):
+        s = str(x)
+        if ":" in s:
+            tf_part, rest = s.split(":", 1)
+            return f"{tf_part.upper()}:{rest}"
+        return s.upper() if len(s) <= 3 else s
+
+    if isinstance(v, list):
+        return "[" + ", ".join(_fmt_one(x) for x in v) + "]"
+    return _fmt_one(v)
+
+
 def format_scored_alert(
     symbol: str,
     direction: str,
@@ -32,7 +45,7 @@ def format_scored_alert(
         "*Contributing factors:*",
     ]
     for name, pts, details in breakdown:
-        detail_str = ", ".join(f"{k}={v}" for k, v in details.items()) if details else ""
+        detail_str = ", ".join(f"{k}={_format_detail_value(v)}" for k, v in details.items()) if details else ""
         line = f"• {name} (+{pts})"
         if detail_str:
             line += f" — {detail_str}"

@@ -33,7 +33,8 @@ class EMAConfluence(Strategy):
     required_timeframes = [config.TF_1H, config.TF_4H, config.TF_1D]
 
     def evaluate(self, data):
-        result = StrategyResult()
+        long_matches = []
+        short_matches = []
 
         for tf, ema_col in _EMA_CHECKS:
             df = data.get(tf)
@@ -51,11 +52,16 @@ class EMAConfluence(Strategy):
                 continue
 
             approaching_from_below = prev["close"] < ema_val
-            details = {"tf": tf, "ema": ema_col}
+            # label combines TF + which EMA, since a strategy can match on the
+            # same TF for different EMAs (e.g. 4H ema_50 AND 4H ema_200)
+            label = f"{tf}:{ema_col}"
 
             if approaching_from_below:
-                result.long = DirectionResult(score=self.weight, details=details)
+                long_matches.append((label, {}))
             else:
-                result.short = DirectionResult(score=self.weight, details=details)
+                short_matches.append((label, {}))
 
-        return result
+        return StrategyResult(
+            long=self.merge_matches(long_matches),
+            short=self.merge_matches(short_matches),
+        )
