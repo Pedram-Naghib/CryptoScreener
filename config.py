@@ -30,9 +30,8 @@ TF_4H = "4h"
 TF_1D = "1d"
 TF_1W = "1w"
 
-MODULE1_TIMEFRAMES = [TF_1H, TF_4H]
 MODULE2_TIMEFRAMES = [TF_1D, TF_1W]
-MODULE3_TIMEFRAMES = [TF_1H, TF_4H]  # LSR reused across the same TFs as Module 1
+
 
 # How many candles of history to pull per timeframe (needs enough for
 # 20-period vol MA, 14-period RSI, weekly VWAP anchor, etc.)
@@ -70,6 +69,7 @@ RSI_PERIOD = 14
 RSI_SMA_PERIOD = 14          # SMA applied to the RSI line itself
 ATR_PERIOD = 14
 VOLUME_MA_PERIOD = 20
+EMA_PERIODS = [9, 21, 50, 200]
 
 # ---------------------------------------------------------------------------
 # Module 1: FVG + VWAP convergence
@@ -88,6 +88,26 @@ PIVOT_RIGHT = 3
 RSI_SMA_TOUCH_TOLERANCE = 1.0   # RSI within this many points of its SMA counts as "touching"
 
 DOUBLE_PATTERN_TOLERANCE_PCT = 0.008  # the two lows/highs must be within 0.8% of each other
+
+# ---------------------------------------------------------------------------
+# EMA Reaction (TP / exit watch signal -- e.g. EMA50 rejection + RSI mid-lane)
+# ---------------------------------------------------------------------------
+EMA_REACTION_EMA = "ema_50"        # which EMA to watch for reaction (from EMA_PERIODS)
+EMA_PROXIMITY_PCT = 0.005          # "price is at the EMA" = within 0.5%
+EMA_REJECTION_LOOKBACK_BARS = 150  # how far back to count prior rejections at this EMA
+EMA_MIN_PRIOR_REJECTIONS = 2       # need at least this many historical rejections to trust the level
+EMA_REJECTION_CONFIRM_BARS = 3     # bars after a touch to check for reversal, when counting history
+EMA_REJECTION_MOVE_PCT = 0.01      # min move away from EMA within confirm_bars to count as "rejected"
+RSI_MIDLANE_LOW = 45
+RSI_MIDLANE_HIGH = 60
+
+# ---------------------------------------------------------------------------
+# Deep Discount FVG strategy (scoring matrix Module 1)
+# ---------------------------------------------------------------------------
+MODULE4_TIMEFRAMES = [TF_4H, TF_1D]
+OTE_ZONE_LEVELS = (0.706, 0.790)   # Optimal Trade Entry zone (narrower than the old 0.618 golden pocket)
+FIB_SWING_LOOKBACK_BARS = 200        # how far back to find the anchoring swing high/low
+MIN_LEG_ATR_MULT = 3.0               # swing leg must be >= this many ATRs to be trusted (filters choppy/ranging noise)
 
 # ---------------------------------------------------------------------------
 # Module 3: Liquidity Sweep Reversal

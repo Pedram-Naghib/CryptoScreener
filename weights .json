@@ -1,0 +1,11 @@
+{
+  "alert_threshold": 4,
+  "strategies": {
+    "deep_discount_fvg": 3,
+    "htf_rsi_divergence": 2,
+    "ema_confluence": 1,
+    "fvg_vwap_convergence": 2,
+    "liquidity_sweep_reversal": 2,
+    "ema_historical_rejection": 1
+  }
+}
