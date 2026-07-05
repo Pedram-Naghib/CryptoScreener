@@ -54,6 +54,34 @@ def _classify_high_pair(price_prev, price_cur, rsi_prev, rsi_cur):
     return None
 
 
+def _rsi_sma_confirms(rsi: np.ndarray, rsi_sma: np.ndarray, pivot_idx: int, tolerance: float) -> bool:
+    """
+    Module 2's 'RSI actively touching or crossing its SMA' trigger. Checked
+    over the whole window from the confirming pivot bar through the current
+    bar (not just the current bar alone) so we still catch it if the touch/
+    cross happens a bar or two after the divergence pivot rather than on the
+    exact same bar.
+    """
+    end = len(rsi) - 1
+    if pivot_idx > end:
+        return False
+
+    window_rsi = rsi[pivot_idx: end + 1]
+    window_sma = rsi_sma[pivot_idx: end + 1]
+    diff = window_rsi - window_sma
+    diff = diff[~np.isnan(diff)]
+    if diff.size == 0:
+        return False
+
+    touching_now = abs(diff[-1]) <= tolerance
+    if touching_now:
+        return True
+
+    signs = np.sign(diff)
+    signs = signs[signs != 0]
+    return bool(signs.size >= 2 and np.any(signs[:-1] != signs[1:]))
+
+
 class HTFRSIDivergence(Strategy):
     name = "htf_rsi_divergence"
     required_timeframes = [config.TF_1D, config.TF_1W]
@@ -63,6 +91,8 @@ class HTFRSIDivergence(Strategy):
         short_matches = []
         rsi_col = f"rsi{config.RSI_PERIOD}"
 
+        rsi_sma_col = f"{rsi_col}_sma"
+
         for tf, df in data.items():
             if len(df) < config.DIVERGENCE_LOOKBACK_BARS + 10:
                 continue
@@ -70,6 +100,7 @@ class HTFRSIDivergence(Strategy):
             low = df["low"].values
             high = df["high"].values
             rsi = df[rsi_col].values
+            rsi_sma = df[rsi_sma_col].values if rsi_sma_col in df.columns else np.full(len(df), np.nan)
             order = config.HTF_PIVOT_WINDOW
 
             low_pivots = _pivot_indices(low, order, "min")
@@ -97,11 +128,23 @@ class HTFRSIDivergence(Strategy):
                 if tag:
                     bearish_tag = tag
 
-            # only score if the confirming pivot is still "current" -- otherwise
-            # we'd be alerting on stale structure from way earlier in the window
-            if bullish_tag and len(low_pivots) and (len(df) - 1 - low_pivots[-1]) <= config.DIVERGENCE_LOOKBACK_BARS:
+            # only score if the confirming pivot is still "current" AND RSI is
+            # actively touching/crossing its own SMA (Module 2's timing filter)
+            # -- otherwise we'd be alerting on stale structure from earlier in
+            # the window, or on a divergence with no live momentum trigger yet.
+            if (
+                bullish_tag
+                and len(low_pivots)
+                and (len(df) - 1 - low_pivots[-1]) <= config.DIVERGENCE_LOOKBACK_BARS
+                and _rsi_sma_confirms(rsi, rsi_sma, low_pivots[-1], config.RSI_SMA_TOUCH_TOLERANCE)
+            ):
                 long_matches.append((tf, {"type": bullish_tag}))
-            if bearish_tag and len(high_pivots) and (len(df) - 1 - high_pivots[-1]) <= config.DIVERGENCE_LOOKBACK_BARS:
+            if (
+                bearish_tag
+                and len(high_pivots)
+                and (len(df) - 1 - high_pivots[-1]) <= config.DIVERGENCE_LOOKBACK_BARS
+                and _rsi_sma_confirms(rsi, rsi_sma, high_pivots[-1], config.RSI_SMA_TOUCH_TOLERANCE)
+            ):
                 short_matches.append((tf, {"type": bearish_tag}))
 
         return StrategyResult(

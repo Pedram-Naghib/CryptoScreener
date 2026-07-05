@@ -35,7 +35,7 @@ def format_scored_alert(
     score: int,
     threshold: int,
     breakdown: list,
-    tp: dict = None,
+    levels: dict = None,
 ) -> str:
     emoji = "🟢" if direction == "long" else "🔴"
     lines = [
@@ -51,11 +51,38 @@ def format_scored_alert(
             line += f" — {detail_str}"
         lines.append(line)
 
-    if tp and tp.get("target_price"):
+    if levels:
         lines.append("")
-        lines.append(f"🎯 TP target: `{tp['target_price']:.6f}` ({tp['target_type']})")
+        lines.append(f"Entry: `{levels['entry_price']:.6f}`")
+        lines.append(f"🛑 SL: `{levels['sl_price']:.6f}` ({levels['sl_type']})")
+        lines.append(f"🎯 TP: `{levels['tp_price']:.6f}` ({levels['tp_type']})")
+        lines.append(f"R:R — *1 : {levels['rr']}*")
 
     return "\n".join(lines)
+
+
+def format_signal_closed(record: dict) -> str:
+    r = record["result_r"]
+    emoji = "✅" if r > 0 else "❌"
+    sign = "+" if r >= 0 else ""
+    return (
+        f"{emoji} *{record['direction'].upper()} Closed — `{record['symbol']}`*\n"
+        f"Outcome: {record['outcome'].upper()} @ `{record['exit_price']:.6f}`\n"
+        f"Result: *{sign}{r:.2f}R*"
+    )
+
+
+def format_performance_summary(stats: dict, period_label: str) -> str:
+    sign = "+" if stats["total_r"] >= 0 else ""
+    avg_sign = "+" if stats["avg_r"] >= 0 else ""
+    return (
+        f"📊 *Performance Summary ({period_label})*\n"
+        f"Closed signals: {stats['count']}\n"
+        f"Wins: {stats['wins']} | Losses: {stats['losses']}\n"
+        f"Win rate: {stats['win_rate']:.0f}%\n"
+        f"Total: *{sign}{stats['total_r']:.2f}R*\n"
+        f"Avg per trade: {avg_sign}{stats['avg_r']:.2f}R"
+    )
 
 
 async def send_alert(message: str):

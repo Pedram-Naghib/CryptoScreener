@@ -62,8 +62,15 @@ def build_indicator_stacks(raw_data: Dict[str, pd.DataFrame]) -> Dict[str, pd.Da
     return out
 
 
-def suggest_tp_for_direction(data: Dict[str, pd.DataFrame], direction: str) -> dict:
-    """Prefers 1H, falls back to 4H -- first timeframe with a usable target wins."""
+def suggest_trade_levels_for_direction(data: Dict[str, pd.DataFrame], direction: str) -> dict | None:
+    """
+    Prefers 1H, falls back to 4H -- first timeframe with a usable TP AND SL
+    (and an R:R that clears MIN_RR_RATIO) wins. Returns None if no timeframe
+    produces a usable set of levels, so callers never have to alert with a
+    missing TP or SL.
+    """
+    atr_col = f"atr{config.ATR_PERIOD}"
+
     for tf in (config.TF_1H, config.TF_4H):
         df = data.get(tf)
         if df is None:
@@ -71,10 +78,34 @@ def suggest_tp_for_direction(data: Dict[str, pd.DataFrame], direction: str) -> d
         df = detect_fvgs(df.copy())
         df["swing_high"] = find_swing_highs(df, config.LTF_PIVOT_WINDOW, config.LTF_PIVOT_WINDOW)
         df["swing_low"] = find_swing_lows(df, config.LTF_PIVOT_WINDOW, config.LTF_PIVOT_WINDOW)
+
         tp = tp_logic.suggest_tp(df, direction)
-        if tp.get("target_price"):
-            return tp
-    return {"target_price": None, "target_type": None, "target_index": None}
+        if not tp.get("target_price"):
+            continue
+        sl = tp_logic.suggest_sl(df, direction, atr_col)
+        if not sl.get("sl_price"):
+            continue
+
+        entry_price = float(df["close"].iloc[-1])
+        risk = abs(entry_price - sl["sl_price"])
+        reward = abs(tp["target_price"] - entry_price)
+        if risk <= 0:
+            continue
+        rr = reward / risk
+        if rr < config.MIN_RR_RATIO:
+            continue
+
+        return {
+            "entry_price": entry_price,
+            "tp_price": tp["target_price"],
+            "tp_type": tp["target_type"],
+            "sl_price": sl["sl_price"],
+            "sl_type": sl["sl_type"],
+            "rr": round(rr, 2),
+            "timeframe": tf,
+        }
+
+    return None
 
 
 def score_symbol(raw_data: Dict[str, pd.DataFrame], strategies: List[Strategy]) -> dict:
@@ -83,7 +114,8 @@ def score_symbol(raw_data: Dict[str, pd.DataFrame], strategies: List[Strategy]) 
       'long_score': int, 'short_score': int,
       'long_breakdown': [ (strategy_name, score, details), ... ],
       'short_breakdown': [ ... ],
-      'long_tp': {...}, 'short_tp': {...},
+      'long_levels': {entry_price, sl_price, sl_type, tp_price, tp_type, rr, timeframe} | None,
+      'short_levels': {...} | None,
     }
     """
     data = build_indicator_stacks(raw_data)
@@ -111,14 +143,14 @@ def score_symbol(raw_data: Dict[str, pd.DataFrame], strategies: List[Strategy]) 
             short_breakdown.append((strat.name, result.short.score, result.short.details))
 
     threshold = get_alert_threshold()
-    long_tp = suggest_tp_for_direction(data, "long") if long_score >= threshold else {"target_price": None}
-    short_tp = suggest_tp_for_direction(data, "short") if short_score >= threshold else {"target_price": None}
+    long_levels = suggest_trade_levels_for_direction(data, "long") if long_score >= threshold else None
+    short_levels = suggest_trade_levels_for_direction(data, "short") if short_score >= threshold else None
 
     return {
         "long_score": long_score,
         "short_score": short_score,
         "long_breakdown": long_breakdown,
         "short_breakdown": short_breakdown,
-        "long_tp": long_tp,
-        "short_tp": short_tp,
+        "long_levels": long_levels,
+        "short_levels": short_levels,
     }

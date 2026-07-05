@@ -13,6 +13,7 @@ computes) instead of leaving TP undefined.
 import pandas as pd
 import numpy as np
 
+import config
 from fvg import get_active_fvgs
 
 
@@ -81,3 +82,46 @@ def suggest_tp(df: pd.DataFrame, direction: str) -> dict:
         raise ValueError("direction must be 'long' or 'short'")
 
     return {"target_price": None, "target_type": None, "target_index": None}
+
+
+def suggest_sl(df: pd.DataFrame, direction: str, atr_col: str) -> dict:
+    """
+    Structural stop-loss: the nearest swing low/high beyond entry (the level
+    that, if it breaks, invalidates the setup), pushed out by a small ATR
+    buffer so ordinary wick noise doesn't stop the trade out exactly at the
+    structural level. Falls back to a pure ATR-multiple stop if no structural
+    swing exists yet on this leg (e.g. right after a fresh breakout).
+
+    Call this on the SAME df already used for suggest_tp (needs swing_high/
+    swing_low and the ATR column already computed).
+
+    Returns: {'sl_price': float | None, 'sl_type': 'structure' | 'atr_fallback' | None}
+    """
+    current_price = df["close"].iloc[-1]
+    atr = df[atr_col].iloc[-1] if atr_col in df.columns else np.nan
+    atr_valid = not np.isnan(atr)
+
+    if direction == "long":
+        if "swing_low" in df.columns:
+            lows_below = df[df["swing_low"] & (df["low"] < current_price)]
+            if not lows_below.empty:
+                structural = float(lows_below["low"].iloc[-1])
+                buffer = atr * config.SL_STRUCTURE_BUFFER_ATR_MULT if atr_valid else structural * 0.002
+                return {"sl_price": structural - buffer, "sl_type": "structure"}
+        if atr_valid:
+            return {"sl_price": float(current_price - atr * config.SL_FALLBACK_ATR_MULT), "sl_type": "atr_fallback"}
+
+    elif direction == "short":
+        if "swing_high" in df.columns:
+            highs_above = df[df["swing_high"] & (df["high"] > current_price)]
+            if not highs_above.empty:
+                structural = float(highs_above["high"].iloc[-1])
+                buffer = atr * config.SL_STRUCTURE_BUFFER_ATR_MULT if atr_valid else structural * 0.002
+                return {"sl_price": structural + buffer, "sl_type": "structure"}
+        if atr_valid:
+            return {"sl_price": float(current_price + atr * config.SL_FALLBACK_ATR_MULT), "sl_type": "atr_fallback"}
+
+    else:
+        raise ValueError("direction must be 'long' or 'short'")
+
+    return {"sl_price": None, "sl_type": None}
