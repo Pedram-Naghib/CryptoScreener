@@ -4,6 +4,9 @@ thresholds -- keep those here so you can tune without touching logic files.
 """
 
 import os
+from dotenv import load_dotenv
+
+load_dotenv()  # must run before any os.getenv() calls below
 
 # ---------------------------------------------------------------------------
 # Exchange / execution
@@ -120,6 +123,20 @@ LSR_REQUIRE_VOLUME_EXHAUSTION = False  # surfaced as info in the alert either wa
 # Take-profit logic
 # ---------------------------------------------------------------------------
 TP_SEARCH_MAX_BARS_BACK = 300  # how far back to look for unmitigated FVGs as targets
+
+# ---------------------------------------------------------------------------
+# Stop-loss logic
+# ---------------------------------------------------------------------------
+SL_STRUCTURE_BUFFER_ATR_MULT = 0.25  # push the SL past the structural swing by this many ATRs
+SL_FALLBACK_ATR_MULT = 1.5           # pure ATR-multiple stop, only used if no structural swing exists yet
+MIN_RR_RATIO = 1.0                   # don't open/alert a tracked signal if computed R:R is below this
+
+# ---------------------------------------------------------------------------
+# Signal tracking / R-multiple performance journal
+# ---------------------------------------------------------------------------
+STATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state")
+SIGNAL_STATE_FILE = os.path.join(STATE_DIR, "signals.json")
+PERFORMANCE_SUMMARY_INTERVAL_HOURS = 24  # how often to push a performance summary to Telegram
 
 # ---------------------------------------------------------------------------
 # Orchestration
